@@ -159,7 +159,6 @@ function formatDate(dateString) {
 }
 
 async function fetchAPOD(date) {
-    if (state.isLoading) return;
     showLoading();
 
     try {
@@ -177,10 +176,31 @@ async function fetchAPOD(date) {
     }
 }
 
-function fetchToday() {
+async function fetchToday() {
     const today = new Date().toISOString().split("T")[0];
     $("#date-picker").value = today;
-    fetchAPOD(today);
+    showLoading();
+    try {
+        const response = await fetch(`${CONFIG.BASE_URL}?api_key=${CONFIG.API_KEY}&date=${today}`);
+        if (!response.ok) {
+            const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+            $("#date-picker").value = yesterday;
+            hideLoading();
+            return fetchAPOD(yesterday);
+        }
+        const data = await response.json();
+        if (data.error) {
+            const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+            $("#date-picker").value = yesterday;
+            hideLoading();
+            return fetchAPOD(yesterday);
+        }
+        state.currentApod = data;
+        state.isHD = false;
+        renderAPOD(data);
+    } catch (error) {
+        showError(error.message || "Failed to fetch data from NASA. Please try again.");
+    }
 }
 
 function fetchRandom() {
