@@ -96,6 +96,10 @@ function setupEventListeners() {
 
     $(".empty-state .btn").addEventListener("click", () => switchView("explore"));
 
+    $("#birthday-btn").addEventListener("click", exploreBirthday);
+
+    $("#clear-favorites-btn").addEventListener("click", clearAllFavorites);
+
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") closeModal();
     });
@@ -109,6 +113,8 @@ function setDateConstraints() {
     $("#date-from").min = CONFIG.MIN_DATE;
     $("#date-to").max = today;
     $("#date-to").min = CONFIG.MIN_DATE;
+    $("#birthday-picker").max = today;
+    $("#birthday-picker").min = CONFIG.MIN_DATE;
 }
 
 function switchView(view) {
@@ -210,6 +216,22 @@ function fetchRandom() {
     const dateStr = randomDate.toISOString().split("T")[0];
     $("#date-picker").value = dateStr;
     fetchAPOD(dateStr);
+}
+
+function exploreBirthday() {
+    const birthday = $("#birthday-picker").value;
+    if (!birthday) return;
+    const birthdayDate = new Date(birthday);
+    const minDate = new Date(CONFIG.MIN_DATE);
+    if (birthdayDate < minDate) {
+        const adjustedYear = minDate.getFullYear() + 1;
+        const adjusted = `${adjustedYear}-${birthday.slice(5)}`;
+        $("#date-picker").value = adjusted;
+        fetchAPOD(adjusted);
+    } else {
+        $("#date-picker").value = birthday;
+        fetchAPOD(birthday);
+    }
 }
 
 function renderAPOD(data) {
@@ -467,6 +489,13 @@ function loadFavorites() {
     if (saved) {
         state.favorites = JSON.parse(saved);
     }
+}
+
+function clearAllFavorites() {
+    if (state.favorites.length === 0) return;
+    state.favorites = [];
+    saveFavorites();
+    renderFavorites();
 }
 
 function renderFavorites() {

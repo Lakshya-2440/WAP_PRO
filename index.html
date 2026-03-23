@@ -67,6 +67,18 @@
                             <span>Random Date</span>
                         </button>
                     </div>
+                    <div class="birthday-section">
+                        <h3 class="birthday-title">🎂 What did the universe look like on your birthday?</h3>
+                        <div class="birthday-controls">
+                            <div class="date-picker-wrapper">
+                                <label for="birthday-picker">Your Birthday</label>
+                                <input type="date" id="birthday-picker" class="date-input">
+                            </div>
+                            <button id="birthday-btn" class="btn btn-secondary">
+                                <span>🎂 Explore My Birthday</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -156,6 +168,7 @@
                 <h2 class="section-title">Your <span class="gradient-text">Favorites</span></h2>
                 <p class="favorites-subtitle">Your personal collection of cosmic wonders</p>
                 <div class="favorites-controls">
+                    <button id="clear-favorites-btn" class="btn btn-secondary">Clear All</button>
                     <select id="favorites-sort" class="select-input">
                         <option value="date-desc">Newest First</option>
                         <option value="date-asc">Oldest First</option>
