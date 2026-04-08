@@ -125,13 +125,56 @@ body {
 }
 
 .logo-icon {
-    font-size: 32px;
-    animation: float 3s ease-in-out infinite;
+    width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
-@keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-6px); }
+.logo-mark {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 8px var(--glow-primary));
+}
+
+.logo-orbit {
+    fill: none;
+    stroke: var(--accent-tertiary);
+    stroke-opacity: 0.8;
+    stroke-width: 2;
+    stroke-dasharray: 3 2;
+    transform-origin: center;
+    animation: spinOrbit 9s linear infinite;
+}
+
+.logo-core {
+    fill: url(#brandGradient);
+}
+
+.logo-trajectory {
+    fill: none;
+    stroke: var(--accent-secondary);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-opacity: 0.9;
+}
+
+.logo-satellite {
+    fill: #ffffff;
+    transform-origin: center;
+    animation: pulseSatellite 2.6s ease-in-out infinite;
+}
+
+@keyframes spinOrbit {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulseSatellite {
+    0%, 100% { transform: scale(1); opacity: 0.9; }
+    50% { transform: scale(1.22); opacity: 1; }
 }
 
 .logo-text h1 {
@@ -965,6 +1008,11 @@ body {
 
     .logo-text h1 {
         font-size: 1rem;
+    }
+
+    .logo-icon {
+        width: 34px;
+        height: 34px;
     }
 
     .logo-subtitle {

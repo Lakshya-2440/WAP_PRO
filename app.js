@@ -1,8 +1,8 @@
 const CONFIG = {
-    API_KEY: "DEMO_KEY",
+    API_KEY: "YyIrJx6NWOFZeMPm6iglnzlwKKdjUfycPwq9MY9j",
     BASE_URL: "https://api.nasa.gov/planetary/apod",
     MIN_DATE: "1995-06-16",
-    GALLERY_COUNT: 15,
+    GALLERY_COUNT: 10,
     DEBOUNCE_DELAY: 400
 };
 
@@ -20,6 +20,209 @@ const state = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => document.querySelectorAll(selector);
+
+const APOD_CACHE_KEY = "nasa-explorer-apod-cache-v1";
+
+const FALLBACK_APODS = [
+    {
+        date: "2025-12-18",
+        title: "Spiral Galaxy in Deep Space",
+        explanation: "Fallback content shown because NASA APOD is temporarily unavailable. This image keeps the app usable while the API recovers.",
+        media_type: "image",
+        url: "https://images-assets.nasa.gov/image/PIA12348/PIA12348~orig.jpg",
+        hdurl: "https://images-assets.nasa.gov/image/PIA12348/PIA12348~orig.jpg",
+        copyright: "NASA/JPL"
+    },
+    {
+        date: "2025-11-07",
+        title: "Pillars of Creation",
+        explanation: "Fallback content shown because NASA APOD is temporarily unavailable. This keeps Explore and Gallery available during API outages.",
+        media_type: "image",
+        url: "https://images-assets.nasa.gov/image/PIA24575/PIA24575~orig.jpg",
+        hdurl: "https://images-assets.nasa.gov/image/PIA24575/PIA24575~orig.jpg",
+        copyright: "NASA, ESA, CSA, STScI"
+    },
+    {
+        date: "2025-10-22",
+        title: "Jupiter and the Great Red Spot",
+        explanation: "Fallback content shown because NASA APOD is temporarily unavailable. Rate limits and temporary server issues are handled automatically.",
+        media_type: "image",
+        url: "https://images-assets.nasa.gov/image/PIA02873/PIA02873~orig.jpg",
+        hdurl: "https://images-assets.nasa.gov/image/PIA02873/PIA02873~orig.jpg",
+        copyright: "NASA/JPL/University of Arizona"
+    },
+    {
+        date: "2025-09-01",
+        title: "The Eagle Nebula",
+        explanation: "Fallback content shown because NASA APOD is temporarily unavailable. The app now fails gracefully instead of showing only an error state.",
+        media_type: "image",
+        url: "https://images-assets.nasa.gov/image/PIA01322/PIA01322~orig.jpg",
+        hdurl: "https://images-assets.nasa.gov/image/PIA01322/PIA01322~orig.jpg",
+        copyright: "NASA/ESA"
+    },
+    {
+        date: "2025-08-12",
+        title: "Saturn with Rings",
+        explanation: "Fallback content shown because NASA APOD is temporarily unavailable. Your favorites and gallery features continue to work with fallback entries.",
+        media_type: "image",
+        url: "https://images-assets.nasa.gov/image/PIA17172/PIA17172~orig.jpg",
+        hdurl: "https://images-assets.nasa.gov/image/PIA17172/PIA17172~orig.jpg",
+        copyright: "NASA/JPL-Caltech/SSI"
+    },
+    {
+        date: "2025-07-04",
+        title: "Earth from Apollo",
+        explanation: "Fallback content shown because NASA APOD is temporarily unavailable. This improves reliability during intermittent API failures.",
+        media_type: "image",
+        url: "https://images-assets.nasa.gov/image/as11-44-6552/as11-44-6552~orig.jpg",
+        hdurl: "https://images-assets.nasa.gov/image/as11-44-6552/as11-44-6552~orig.jpg",
+        copyright: "NASA"
+    }
+];
+
+function getApiKeys() {
+    return [...new Set([CONFIG.API_KEY, ...(CONFIG.API_KEYS || []), "DEMO_KEY", ""].filter((key) => key !== undefined && key !== null))];
+}
+
+function normalizeErrorStatus(error) {
+    const raw = error?.status;
+    if (typeof raw === "number") return raw;
+    if (typeof raw === "string") {
+        const parsed = Number(raw);
+        if (!Number.isNaN(parsed)) return parsed;
+    }
+    return null;
+}
+
+function isRetryableApiError(error) {
+    const status = normalizeErrorStatus(error);
+    const code = typeof error?.status === "string" ? error.status.toUpperCase() : "";
+    return status === 429 || status === 500 || (status !== null && status >= 502) || code.includes("OVER_RATE_LIMIT");
+}
+
+function getCachedApod(date) {
+    try {
+        const cache = JSON.parse(localStorage.getItem(APOD_CACHE_KEY) || "{}");
+        return cache[date] || null;
+    } catch {
+        return null;
+    }
+}
+
+function setCachedApod(date, data) {
+    try {
+        const cache = JSON.parse(localStorage.getItem(APOD_CACHE_KEY) || "{}");
+        cache[date] = data;
+        localStorage.setItem(APOD_CACHE_KEY, JSON.stringify(cache));
+    } catch {
+        // Ignore cache failures (e.g., private mode storage limits).
+    }
+}
+
+function buildApodUrl(params) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+            query.set(key, String(value));
+        }
+    });
+    return `${CONFIG.BASE_URL}?${query.toString()}`;
+}
+
+async function getJsonOrThrow(url) {
+    const response = await fetch(url);
+    let payload = null;
+    try {
+        payload = await response.json();
+    } catch {
+        payload = null;
+    }
+
+    if (!response.ok || (payload && payload.error)) {
+        const message = payload?.error?.message || payload?.msg || `API Error: ${response.status}`;
+        const error = new Error(message);
+        error.status = payload?.error?.code || response.status;
+        throw error;
+    }
+
+    return payload;
+}
+
+async function fetchApodWithFallback(params) {
+    const keys = getApiKeys();
+    let lastError = new Error("Failed to fetch data from NASA.");
+
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        try {
+            const url = buildApodUrl({ ...params, api_key: key });
+            return await getJsonOrThrow(url);
+        } catch (error) {
+            lastError = error;
+            if (isRetryableApiError(error) && i < keys.length - 1) {
+                continue;
+            }
+        }
+    }
+
+    throw lastError;
+}
+
+function cloneFallbackApod(entry, dateOverride) {
+    return {
+        ...entry,
+        date: dateOverride || entry.date,
+        title: `${entry.title} (Fallback)`
+    };
+}
+
+function getFallbackApodForDate(date) {
+    if (FALLBACK_APODS.length === 0) return null;
+    const dayIndex = new Date(`${date}T00:00:00`).getDate() - 1;
+    const selected = FALLBACK_APODS[Math.abs(dayIndex) % FALLBACK_APODS.length];
+    return cloneFallbackApod(selected, date);
+}
+
+function getFallbackGalleryEntries(count) {
+    const total = Math.max(count, FALLBACK_APODS.length);
+    return Array.from({ length: total }, (_, index) => {
+        const base = FALLBACK_APODS[index % FALLBACK_APODS.length];
+        const d = new Date();
+        d.setDate(d.getDate() - index);
+        const date = d.toISOString().split("T")[0];
+        return cloneFallbackApod(base, date);
+    });
+}
+
+function formatApiError(error) {
+    const status = normalizeErrorStatus(error);
+    const code = typeof error?.status === "string" ? error.status.toUpperCase() : "";
+    if (status === 429 || code.includes("OVER_RATE_LIMIT")) {
+        return "NASA API rate limit reached. Please wait a minute and try again.";
+    }
+    if (status === 500 || (status !== null && status >= 502)) {
+        return "NASA API is temporarily unavailable. Showing fallback content.";
+    }
+    return error?.message || "Failed to fetch data from NASA. Please try again.";
+}
+
+async function getApodByDate(date) {
+    const cached = getCachedApod(date);
+    if (cached) return cached;
+
+    try {
+        const data = await fetchApodWithFallback({ date });
+        setCachedApod(date, data);
+        return data;
+    } catch {
+        const fallback = getFallbackApodForDate(date);
+        if (fallback) {
+            setCachedApod(date, fallback);
+            return fallback;
+        }
+        throw new Error("NASA API and fallback content are unavailable.");
+    }
+}
 
 function init() {
     loadTheme();
@@ -168,44 +371,31 @@ async function fetchAPOD(date) {
     showLoading();
 
     try {
-        const response = await fetch(`${CONFIG.BASE_URL}?api_key=${CONFIG.API_KEY}&date=${date}`);
-        if (!response.ok) throw new Error(`API Error: ${response.status}`);
-        const data = await response.json();
-
-        if (data.error) throw new Error(data.error.message);
+        const data = await getApodByDate(date);
 
         state.currentApod = data;
         state.isHD = false;
         renderAPOD(data);
     } catch (error) {
-        showError(error.message || "Failed to fetch data from NASA. Please try again.");
+        showError(formatApiError(error));
+        throw error;
     }
 }
 
 async function fetchToday() {
     const today = new Date().toISOString().split("T")[0];
     $("#date-picker").value = today;
-    showLoading();
+
     try {
-        const response = await fetch(`${CONFIG.BASE_URL}?api_key=${CONFIG.API_KEY}&date=${today}`);
-        if (!response.ok) {
+        await fetchAPOD(today);
+    } catch {
+        try {
             const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
             $("#date-picker").value = yesterday;
-            hideLoading();
-            return fetchAPOD(yesterday);
+            await fetchAPOD(yesterday);
+        } catch (error) {
+            showError(formatApiError(error));
         }
-        const data = await response.json();
-        if (data.error) {
-            const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-            $("#date-picker").value = yesterday;
-            hideLoading();
-            return fetchAPOD(yesterday);
-        }
-        state.currentApod = data;
-        state.isHD = false;
-        renderAPOD(data);
-    } catch (error) {
-        showError(error.message || "Failed to fetch data from NASA. Please try again.");
     }
 }
 
@@ -309,21 +499,27 @@ async function loadGalleryData() {
     $("#gallery-loading").classList.remove("hidden");
 
     try {
-        const dates = generateRandomDates(CONFIG.GALLERY_COUNT);
-        const promises = dates.map((date) =>
-            fetch(`${CONFIG.BASE_URL}?api_key=${CONFIG.API_KEY}&date=${date}`)
-                .then((res) => (res.ok ? res.json() : null))
-                .catch(() => null)
-        );
+        const range = generateRandomDateRange(CONFIG.GALLERY_COUNT);
+        const results = await fetchApodWithFallback({
+            start_date: range.start,
+            end_date: range.end
+        });
+        const entries = Array.isArray(results) ? results : [results];
+        const validResults = entries.filter((item) => item && !item.error);
+        const byDate = new Map(state.galleryData.map((item) => [item.date, item]));
+        validResults.forEach((item) => byDate.set(item.date, item));
 
-        const results = await Promise.all(promises);
-        const validResults = results.filter((item) => item !== null && !item.error);
-
-        state.galleryData = [...state.galleryData, ...validResults];
+        state.galleryData = Array.from(byDate.values());
         state.galleryPage++;
         applyGalleryFilters();
     } catch (error) {
-        console.error(error);
+        const fallbackEntries = getFallbackGalleryEntries(CONFIG.GALLERY_COUNT);
+        const byDate = new Map(state.galleryData.map((item) => [item.date, item]));
+        fallbackEntries.forEach((item) => byDate.set(item.date, item));
+        state.galleryData = Array.from(byDate.values());
+        state.galleryPage++;
+        applyGalleryFilters();
+        $("#results-info").textContent = `${formatApiError(error)} Using fallback gallery content.`;
     } finally {
         $("#gallery-loading").classList.add("hidden");
     }
@@ -340,6 +536,24 @@ function generateRandomDates(count) {
         const date = new Date(start + Math.random() * (end - start));
         return date.toISOString().split("T")[0];
     });
+}
+
+function generateRandomDateRange(count) {
+    const min = new Date(CONFIG.MIN_DATE);
+    const max = new Date();
+    const maxStart = new Date(max);
+    maxStart.setDate(maxStart.getDate() - Math.max(count - 1, 0));
+    const startTime = Math.max(min.getTime(), min.getTime() + Math.random() * (maxStart.getTime() - min.getTime()));
+
+    const startDate = new Date(startTime);
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + Math.max(count - 1, 0));
+    if (endDate > max) endDate.setTime(max.getTime());
+
+    return {
+        start: startDate.toISOString().split("T")[0],
+        end: endDate.toISOString().split("T")[0]
+    };
 }
 
 function applyGalleryFilters() {
