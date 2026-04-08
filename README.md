@@ -15,6 +15,9 @@ NASA Mission Explorer provides an immersive space-themed experience where users 
 - Save favorites for later viewing
 - Toggle between dark (space) and light themes
 
+![alt text](image.png)
+![alt text](image-1.png)
+
 ## 🔗 API Used
 
 **NASA APOD API** — [https://api.nasa.gov/](https://api.nasa.gov/)
